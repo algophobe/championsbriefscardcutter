@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Debate Card Cutter (v2)</title>
+  <style>
+    :root { --bg:#0b0d10; --panel:#12161c; --text:#e7eef7; --muted:#9fb0c3; --line:#233042; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    header{padding:18px 18px 8px}
+    header h1{margin:0;font-size:20px}
+    header p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.35}
+    main{padding:14px 18px 22px;display:grid;gap:14px;grid-template-columns: 440px 1fr}
+    @media (max-width: 980px){main{grid-template-columns:1fr}}
+    .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    .panel h2{margin:0;padding:12px 12px 10px;font-size:14px;border-bottom:1px solid var(--line);color:var(--muted)}
+    .panel .body{padding:12px}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+    input[type="text"], textarea{width:100%;background:#0f1319;border:1px solid var(--line);border-radius:10px;color:var(--text);padding:10px;font-size:13px;outline:none}
+    textarea{min-height:110px;resize:vertical;line-height:1.4}
+    .row{display:grid;gap:10px;grid-template-columns: 1fr 1fr}
+    @media (max-width: 980px){.row{grid-template-columns:1fr}}
+    .btns{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;align-items:center}
+    button{background:#172131;border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#2b6dff,#1f54c6);border-color:#2f6fff}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#0f1319;border:1px solid var(--line);color:var(--muted);font-size:12px}
+    .small{font-size:12px;color:var(--muted);line-height:1.35}
+    .hr{height:1px;background:var(--line);margin:12px 0}
+    .imgPrev{width:100%;border-radius:12px;border:1px solid var(--line);background:#0f1319;display:block;max-height:420px;object-fit:contain}
+
+    /* === Output card styling (your spec) === */
+    .outWrap{background:#0f1319;border:1px solid var(--line);border-radius:12px;padding:12px}
+    .outCard{font-family: Arial, sans-serif; color:#000; background:#fff; padding:12px; border-radius:10px}
+    .outAuth{font-size:13pt;font-weight:700;margin:0 0 8px 0}
+    .outCite{font-size:10pt;font-weight:400;margin:0 0 10px 0;white-space:pre-wrap}
+    .outQuote{margin:0;white-space:pre-wrap}
+    .qBold{font-size:13pt;font-weight:700;text-decoration:underline;background:#fff59a;}
+    .qNorm{font-size:7pt;font-weight:400;text-decoration:none;background:none;}
+
+    /* Quote editor */
+    .editor{background:#0f1319;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:160px;line-height:1.35;outline:none;color:var(--text)}
+    .kbd{font-family:ui-monospace,monospace;border:1px solid var(--line);background:#0f1319;border-radius:8px;padding:2px 6px;color:var(--muted)}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Debate Card Cutter (v2)</h1>
+    <p>
+      Upload a screenshot → OCR → paste into the quote editor → select the bold parts from the screenshot → apply <span class="kbd">Bold+Underline+Highlight</span>.
+      (OCR can’t reliably auto-detect bolding from screenshots.)
+    </p>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>1) Screenshot → OCR</h2>
+      <div class="body">
+        <label>Upload screenshot</label>
+        <input id="file" type="file" accept="image/*" />
+
+        <div class="btns">
+          <button id="btnOcr" class="primary" disabled>Run OCR</button>
+          <span class="pill"><span id="status">Idle</span></span>
+        </div>
+
+        <div class="hr"></div>
+
+        <label>OCR text</label>
+        <textarea id="raw" placeholder="OCR output will appear here..."></textarea>
+
+        <div class="btns">
+          <button id="btnClean">Auto-clean</button>
+          <button id="btnToEditor">Send to Quote Editor</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <h2 style="border:none;padding:0 0 8px;margin:0;color:var(--muted);font-size:13px;">2) Your Card Fields</h2>
+
+        <div class="row">
+          <div>
+            <label>Author last name</label>
+            <input id="authorLast" type="text" placeholder="AUTHOR_LAST_NAME" />
+          </div>
+          <div>
+            <label>Year (2-digit)</label>
+            <input id="year2" type="text" placeholder="YY" />
+          </div>
+        </div>
+
+        <label>Citation section (10pt)</label>
+        <textarea id="cite" placeholder="Paste the citation block exactly how you want it (with line breaks)."></textarea>
+
+        <label>Quote editor (mark bold parts)</label>
+        <div class="btns">
+          <button id="btnBold" class="primary">Bold + Underline + Highlight (13pt)</button>
+          <button id="btnNorm">Normal (7pt)</button>
+          <button id="btnAllNorm">Make All Normal</button>
+        </div>
+        <div id="editor" class="editor" contenteditable="true"></div>
+        <p class="small" style="margin:8px 0 0;">
+          Quick workflow: <span class="kbd">Send to Quote Editor</span> → <span class="kbd">Make All Normal</span> → highlight bold parts → <span class="kbd">Bold+Underline+Highlight</span>.
+        </p>
+
+        <div class="btns" style="margin-top:12px">
+          <button id="btnBuild" class="primary">Build Card</button>
+          <button id="btnCopyRich">Copy Card (formatted)</button>
+          <button id="btnCopyPlain">Copy Plain Text</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Preview</h2>
+      <div class="body">
+        <div style="display:grid;grid-template-columns: 1fr 1fr;gap:12px" id="previewGrid">
+          <div>
+            <label>Image preview</label>
+            <img id="imgPrev" class="imgPrev" alt="Preview" />
+            <p class="small" id="imgHint" style="margin:8px 0 0;">Upload an image to preview it here.</p>
+          </div>
+          <div>
+            <label>Debate card output</label>
+            <div class="outWrap"><div id="out" class="outCard"></div></div>
+            <p class="small" style="margin:8px 0 0;">If Docs strips highlight, paste into Word first, then into Docs.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fileInput = $('file');
+    const btnOcr = $('btnOcr');
+    const statusEl = $('status');
+    const rawEl = $('raw');
+    const btnClean = $('btnClean');
+    const btnToEditor = $('btnToEditor');
+
+    const imgPrev = $('imgPrev');
+    const imgHint = $('imgHint');
+
+    const authorLastEl = $('authorLast');
+    const year2El = $('year2');
+    const citeEl = $('cite');
+
+    const editor = $('editor');
+    const btnBold = $('btnBold');
+    const btnNorm = $('btnNorm');
+    const btnAllNorm = $('btnAllNorm');
+
+    const btnBuild = $('btnBuild');
+    const btnCopyRich = $('btnCopyRich');
+    const btnCopyPlain = $('btnCopyPlain');
+    const outEl = $('out');
+
+    let currentImageUrl = null;
+    function setStatus(t){ statusEl.textContent = t; }
+
+    function cleanText(t){
+      return (t || '')
+        .replace(/\r\n/g,'\n')
+        .replace(/\n{3,}/g,'\n\n')
+        .replace(/[ \t]{2,}/g,' ')
+        .replace(/\s+\n/g,'\n')
+        .replace(/\n\s+/g,'\n')
+        .replace(/\u201c|\u201d/g,'"')
+        .replace(/\u2018|\u2019/g,"'")
+        .replace(/\s+([,.;:!?])/g,'$1')
+        .trim();
+    }
+
+    function escapeHtml(str){
+      return (str || '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#39;');
+    }
+
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files?.[0];
+      if(!f) return;
+      if(currentImageUrl) URL.revokeObjectURL(currentImageUrl);
+      currentImageUrl = URL.createObjectURL(f);
+      imgPrev.src = currentImageUrl;
+      imgHint.textContent = f.name;
+      btnOcr.disabled = false;
+      setStatus('Ready');
+    });
+
+    btnOcr.addEventListener('click', async () => {
+      const f = fileInput.files?.[0];
+      if(!f) return;
+      btnOcr.disabled = true;
+      setStatus('OCR: starting...');
+      try {
+        const worker = await Tesseract.createWorker('eng');
+        await worker.setParameters({ preserve_interword_spaces: '1' });
+        const { data } = await worker.recognize(f, undefined, {
+          logger: (m) => {
+            if(m.status === 'recognizing text') setStatus('OCR: ' + Math.round((m.progress||0)*100) + '%');
+            else setStatus('OCR: ' + m.status);
+          }
+        });
+        await worker.terminate();
+        rawEl.value = (data.text || '').trim();
+        setStatus('OCR done');
+      } catch(e){
+        console.error(e);
+        setStatus('OCR failed');
+        alert('OCR failed. Try a clearer screenshot.');
+      } finally {
+        btnOcr.disabled = false;
+      }
+    });
+
+    btnClean.addEventListener('click', () => {
+      rawEl.value = cleanText(rawEl.value);
+      setStatus('Cleaned');
+    });
+
+    btnToEditor.addEventListener('click', () => {
+      const t = cleanText(rawEl.value);
+      editor.innerHTML = escapeHtml(t).replace(/\n/g,'<br>');
+      makeAllNormal();
+      setStatus('Sent to editor');
+    });
+
+    function wrapSelection(className){
+      const sel = window.getSelection();
+      if(!sel || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      if(range.collapsed) return;
+      if(!editor.contains(range.commonAncestorContainer)) return;
+
+      const span = document.createElement('span');
+      span.className = className;
+      try {
+        range.surroundContents(span);
+      } catch {
+        const frag = range.extractContents();
+        span.appendChild(frag);
+        range.insertNode(span);
+      }
+    }
+
+    function makeAllNormal(){
+      const text = editor.innerText || '';
+      editor.innerHTML = '';
+      const span = document.createElement('span');
+      span.className = 'qNorm';
+      span.textContent = text;
+      editor.appendChild(span);
+      editor.innerHTML = editor.innerHTML.replace(/\n/g,'<br>');
+    }
+
+    btnBold.addEventListener('click', () => { wrapSelection('qBold'); setStatus('Styled bold'); });
+    btnNorm.addEventListener('click', () => { wrapSelection('qNorm'); setStatus('Styled normal'); });
+    btnAllNorm.addEventListener('click', () => { makeAllNormal(); setStatus('All normal'); });
+
+    function buildCardHtml(){
+      const last = (authorLastEl.value || '').trim();
+      const yy = (year2El.value || '').trim();
+      const cite = (citeEl.value || '').trim();
+      const authLine = (last + ' ' + yy).trim();
+      const quoteHtml = (editor.innerHTML || '').trim();
+      return ''
+        + '<p class="outAuth">' + escapeHtml(authLine) + '</p>'
+        + '<p class="outCite">' + escapeHtml(cite) + '</p>'
+        + '<div class="outQuote">' + (quoteHtml || '<span class="qNorm"></span>') + '</div>';
+    }
+
+    function buildPlainText(){
+      const last = (authorLastEl.value || '').trim();
+      const yy = (year2El.value || '').trim();
+      const cite = (citeEl.value || '').trim();
+      const quote = (editor.innerText || '').trim();
+      return (last + ' ' + yy).trim() + '\n\n' + cite + '\n\n' + quote;
+    }
+
+    btnBuild.addEventListener('click', () => {
+      outEl.innerHTML = buildCardHtml();
+      setStatus('Built');
+    });
+
+    btnCopyRich.addEventListener('click', async () => {
+      const html = '<div>' + buildCardHtml() + '</div>';
+      const plain = buildPlainText();
+      try {
+        if(navigator.clipboard && window.ClipboardItem){
+          const item = new ClipboardItem({
+            'text/html': new Blob([html], { type: 'text/html' }),
+            'text/plain': new Blob([plain], { type: 'text/plain' }),
+          });
+          await navigator.clipboard.write([item]);
+        } else {
+          await navigator.clipboard.writeText(plain);
+        }
+        setStatus('Copied (formatted)');
+      } catch(e){
+        console.error(e);
+        setStatus('Copy failed');
+        alert('Copy failed. Try Copy Plain Text, or copy from the preview.');
+      }
+    });
+
+    btnCopyPlain.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(buildPlainText());
+        setStatus('Copied (plain)');
+      } catch {
+        setStatus('Copy failed');
+      }
+    });
+
+    // init
+    editor.innerHTML = '<span class="qNorm">Paste text here (or use “Send to Quote Editor”).</span>';
+    outEl.innerHTML = '<span style="font-size:12px;color:#111">Build will appear here.</span>';
+  </script>
+</body>
+</html>
