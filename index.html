@@ -161,6 +161,14 @@
     let currentImageUrl = null;
     function setStatus(t){ statusEl.textContent = t; }
 
+    // If your adblock/privacy tools OR a network filter blocks the OCR library, show a clear message
+    // (IMPORTANT: setStatus must exist before we call it)
+    if(!window.Tesseract){
+      setStatus('OCR blocked (tesseract not loaded)');
+      btnOcr.disabled = true;
+      console.warn('Tesseract failed to load. Check DevTools -> Network for tesseract.min.js being blocked.');
+    }
+
     function cleanText(t){
       return (t || '')
         .replace(/\r\n/g,'\n')
@@ -190,8 +198,14 @@
       currentImageUrl = URL.createObjectURL(f);
       imgPrev.src = currentImageUrl;
       imgHint.textContent = f.name;
-      btnOcr.disabled = false;
-      setStatus('Ready');
+      // Only enable OCR if the OCR library actually loaded
+      if(window.Tesseract){
+        btnOcr.disabled = false;
+        setStatus('Ready');
+      } else {
+        btnOcr.disabled = true;
+        setStatus('OCR blocked (disable adblock)');
+      }
     });
 
     btnOcr.addEventListener('click', async () => {
